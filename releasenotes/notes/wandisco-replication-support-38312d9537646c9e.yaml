@@ -1,0 +1,6 @@
+---
+prelude: >
+  Gerrit with WANDisco replication.
+features:
+  - Adding WANDisco replication support.
+  - Added reno release notes.

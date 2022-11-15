@@ -68,10 +68,12 @@
             };
           }
       } else {
-          //NON REPLICATED REPO PATH
+          // NON REPLICATED REPO PATH
+          // Note the $$ on preserve. See:
+          // https://polymer-library.polymer-project.org/1.0/docs/devguide/local-dom
           this.json = {
-              force: this.$.forceDeleteOpenChangesCheckBox.checked,
-              preserve: this.$.preserveGitRepoCheckBox.checked
+            force: this.$.forceDeleteOpenChangesCheckBox.checked,
+            preserve: this.$$('#preserveGitRepoCheckBox').checked
           };
       }
 
@@ -83,23 +85,12 @@
           this.action.method, endpoint, this.json, errFn)
             .then(r => {
               this.plugin.restApi().invalidateReposCache();
-              if(this.isReplicated){
 
-                if(this.json["preserve"] == false){
-                   window.alert('The replicated project ' + this.repoName + ' was deleted "');
-                } else {
-                   window.alert('The replicated project ' + this.repoName + ' was cleaned up "');
-                }
+              let start = this.isReplicated ? 'The replicated project ' : 'The project ';
+              let end = this.json["preserve"] ? ' was cleaned up' : ' was deleted';
 
-              } else {
+              window.alert(start + this.repoName + end);
 
-                if(this.json["preserve"] == false){
-                   window.alert('The project ' + this.repoName + ' was deleted "');
-                } else {
-                   window.alert('The project ' + this.repoName + ' was cleaned up "');
-                }
-
-              }
               Gerrit.Nav.navigateToRelativeUrl('/admin/repos');
       });
     },

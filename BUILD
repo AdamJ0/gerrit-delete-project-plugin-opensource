@@ -14,6 +14,7 @@ gerrit_plugin(
         "Gerrit-SshModule: com.googlesource.gerrit.plugins.deleteproject.SshModule",
     ],
     resource_jars = [":gr-delete-repo-static"],
+    resources = glob(["src/main/resources/**/*"]),
     deps = [
             "//lib/commons:io",
             "//lib/wandisco:gerrit-gitms-interface"
@@ -44,7 +45,7 @@ polygerrit_plugin(
 junit_tests(
     name = "delete-project_tests",
     srcs = glob(["src/test/java/**/*.java"]),
-    tags = ["delete-project"],
+    tags = ["delete-project", "disabled"],
     deps = [":delete-project__plugin_test_deps"],
 )
 

@@ -23,9 +23,7 @@ import com.google.gerrit.reviewdb.client.Change;
 import com.google.gerrit.reviewdb.client.Project;
 import com.google.gerrit.server.CurrentUser;
 import com.google.gerrit.server.IdentifiedUser;
-import com.google.gerrit.server.notedb.NotesMigration;
 import com.google.gerrit.server.project.ProjectResource;
-import com.google.gerrit.server.query.change.ChangeData;
 import com.google.gerrit.server.replication.*;
 import com.google.gwtorm.server.OrmConcurrencyException;
 import com.google.gwtorm.server.OrmException;
@@ -51,6 +49,7 @@ import java.util.UUID;
 
 import com.wandisco.gerrit.gitms.shared.api.ApiResponse;
 import com.wandisco.gerrit.gitms.shared.api.HttpRequestBuilder;
+import com.wandisco.gerrit.gitms.shared.exception.ConfigurationException;
 import com.wandisco.gerrit.gitms.shared.properties.GitMsApplicationProperties;
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
@@ -70,7 +69,6 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
 
   private final HttpRequestBuilder requestBuilder;
   private final String deleteEndpoint = "/gerrit/delete";
-  private GitMsApplicationProperties gitMsApplicationProperties = null;
 
   protected final DeletePreconditions preConditions;
 
@@ -81,7 +79,6 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
   private final DeleteLog deleteLog;
   private final Configuration cfg;
   private final HideProject hideProject;
-  private NotesMigration migration;
 
   @Inject
   DeleteProject(
@@ -92,8 +89,7 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
       DeleteLog deleteLog,
       DeletePreconditions preConditions,
       Configuration cfg,
-      HideProject hideProject,
-      NotesMigration migration) throws IOException {
+      HideProject hideProject) {
     this.dbHandler = dbHandler;
     this.fsHandler = fsHandler;
     this.cacheHandler = cacheHandler;
@@ -102,15 +98,7 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
     this.preConditions = preConditions;
     this.cfg = cfg;
     this.hideProject = hideProject;
-    this.migration = migration;
-
-    if (gitMsApplicationProperties == null) {
-      gitMsApplicationProperties = new GitMsApplicationProperties();
-    }
-
-    final String host = gitMsApplicationProperties.getGitMSLocalJettyHost();
-    final int port = Integer.valueOf(gitMsApplicationProperties.getGitMSLocalJettyPort());
-    requestBuilder = setupHttpRequest(host, port, deleteEndpoint);
+    this.requestBuilder = Replicator.isReplicationDisabled() ? null : getRequestBuilder();
   }
 
   @Override
@@ -145,9 +133,7 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
     Exception ex = null;
     try {
       if (!preserve || !cfg.projectOnPreserveHidden()) {
-        if (!migration.disableChangeReviewDb()) {
-          dbHandler.delete(project);
-        }
+        dbHandler.delete(project);
         try {
           fsHandler.delete(project, preserve);
         } catch (RepositoryNotFoundException e) {
@@ -346,6 +332,12 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
     requestBuilder.setRequestParameter("taskIdForDelayedRemoval", uuid);
   }
 
+  private HttpRequestBuilder getRequestBuilder() {
+    final GitMsApplicationProperties appProps = Replicator.getApplicationProperties();
+    return setupHttpRequest(appProps.getGitMSLocalJettyHost(),
+                            Integer.parseInt(appProps.getGitMSLocalJettyPort()),
+                            this.deleteEndpoint);
+  }
 
   /*
    * Makes the request to GitMS /gerrit/delete endpoint for the
@@ -403,7 +395,7 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
         }
 
         try {
-          changeIds = dbHandler.replicatedDeleteChanges(project);
+          changeIds = dbHandler.getReplicatedDeleteChangeIdsList(project);
           log.atInfo().log("Deletion of project %s from the database succeeded", project.getName());
         } catch(OrmConcurrencyException e) {
           log.atSevere().log("Could not delete the project %s", project.getName(), e);
