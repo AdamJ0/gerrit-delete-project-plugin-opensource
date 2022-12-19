@@ -49,6 +49,7 @@ import java.util.UUID;
 
 import com.wandisco.gerrit.gitms.shared.api.ApiResponse;
 import com.wandisco.gerrit.gitms.shared.api.HttpRequestBuilder;
+import com.wandisco.gerrit.gitms.shared.exception.ConfigurationException;
 import com.wandisco.gerrit.gitms.shared.properties.GitMsApplicationProperties;
 import org.eclipse.jgit.errors.ConfigInvalidException;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
@@ -68,7 +69,6 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
 
   private final HttpRequestBuilder requestBuilder;
   private final String deleteEndpoint = "/gerrit/delete";
-  private GitMsApplicationProperties gitMsApplicationProperties = null;
 
   protected final DeletePreconditions preConditions;
 
@@ -98,14 +98,7 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
     this.preConditions = preConditions;
     this.cfg = cfg;
     this.hideProject = hideProject;
-
-    if (gitMsApplicationProperties == null) {
-      gitMsApplicationProperties = new GitMsApplicationProperties();
-    }
-
-    final String host = gitMsApplicationProperties.getGitMSLocalJettyHost();
-    final int port = Integer.valueOf(gitMsApplicationProperties.getGitMSLocalJettyPort());
-    requestBuilder = setupHttpRequest(host, port, deleteEndpoint);
+    this.requestBuilder = Replicator.isReplicationDisabled() ? null : getRequestBuilder();
   }
 
   @Override
@@ -339,6 +332,12 @@ class DeleteProject implements RestModifyView<ProjectResource, Input> {
     requestBuilder.setRequestParameter("taskIdForDelayedRemoval", uuid);
   }
 
+  private HttpRequestBuilder getRequestBuilder() {
+    final GitMsApplicationProperties appProps = Replicator.getApplicationProperties();
+    return setupHttpRequest(appProps.getGitMSLocalJettyHost(),
+                            Integer.parseInt(appProps.getGitMSLocalJettyPort()),
+                            this.deleteEndpoint);
+  }
 
   /*
    * Makes the request to GitMS /gerrit/delete endpoint for the
